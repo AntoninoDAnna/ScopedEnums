@@ -1,0 +1,6 @@
+using ScopedEnums
+
+@scopedenum Test a=1 b c
+
+println.([a,b,c])
+     
