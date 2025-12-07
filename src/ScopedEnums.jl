@@ -5,12 +5,11 @@ export ScopedEnum, @scopedenum
 
 function namemap end
 
-"""
-    ScopedEnum{T<:Integer}
+@doc """
+    ScopedEnum{T} <: Base.Enum{T} where {T<Integer}
 
-The abstract supertype of all enumerated types defined with [`@scopedenum`](@ref).
-"""
-
+Abstract supertype for all the scoped enum defined with [`@scopedenum`](@ref).
+    """
 abstract type ScopedEnum{T} <: Base.Enum{T} end
 
 @noinline arg_error(x) = throw(ArgumentError(x))
@@ -27,13 +26,37 @@ function membershiptest(expr, values)
     end
 end
 
+"""
+    @scopedenum Name[::BaseType] value1[=x] value2[=y]
 
+Create a `ScopedEnum{Basetype}` subtype with name `Name` and enum member values of `value1` and `value2` with optional assigned values of `x` and `y`, respectively. `ScopedEnum` differs from regular `Enum` in being scoped in a Module called `Name`. So to refer to `value1` one as to call `Name.value1`. Additionaly, one can use @scopedenum as bitflags.
+The main throwback of this implementation is that `Name`, being the name of the module, cannot be used as a type. The type of the enum member is `Name.Type`
+julia> @scopedenum Fruits apple=1 orange=2 kiwi=3
+
+julia> f(x::Fruits.Type) = "I'm a Fruit with: $(Int(x))"
+f (generic function with 1 method)
+
+julia> f(Fruits.apple)
+"I'm a Fruit with: 1"
+# Examples
+
+```@jldoctest
+julia> @scopedenum Fruits apple=1 orange=2 kiwi=3
+
+julia> f(x::Fruits.Type) = "I'm a Fruit with value: \$(Int(x))"
+f (generic function with 1 method)
+
+julia> f(Fruits.apple)
+"I'm a Fruit with: 1"
+
+```
+"""
 macro scopedenum(T::Union{Symbol,Expr}, syms...)
     isempty(syms) && arg_error(LazyString("no arguments given for ScopedEnum", T))
 
     basetype = Int32;
     typename = T;
-    T = :__T__
+    _T = :Type
     if isa(T,Expr) && T.head === :(::) && length(T.args) == 2 && isa(T.args[1],Symbol)
         # this deal with type defined as Train::Int64     
         typename = T.args[1]
@@ -53,7 +76,6 @@ macro scopedenum(T::Union{Symbol,Expr}, syms...)
     hasexpr = false
 
     if length(syms) == 1 && syms[1] isa Expr && syms[1].head === :block
-        println("syms is an Expression")
         syms = syms[1].args
     end
     for s in syms
@@ -102,21 +124,21 @@ macro scopedenum(T::Union{Symbol,Expr}, syms...)
     end
     blk = quote
         import Base
-        primitive type $(esc(T)) <: ScopedEnum{$(esc(basetype))} $(sizeof(basetype)*8) end
-        function $(esc(T))(x::Integer)
+        primitive type $(esc(_T)) <: ScopedEnum{$(esc(basetype))} $(sizeof(basetype)*8) end
+        function $(esc(_T))(x::Integer)
             $(membershiptest(:x,values)) || args_error($(Expr(:quote, typename)), x)
-            return bitcast($(esc(basetype)), convert($(basetype),x))
+            return bitcast($(esc(_T)), convert($(basetype),x))
         end
-        ScopedEnums.namemap(::Type{$(esc(T))}) = $(esc(namemap))
-        Base.typemin(x::Type{$(esc(T))}) = $(esc(typename))($lo)
-        Base.typemax(x::Type{$(esc(T))}) = $(esc(typename))($hi)
-        let inst = (Any[ $(esc(T))(v) for v in $values]...,)
-            Base.instances(::Type{$(esc(T))}) = inst
+        ScopedEnums.namemap(::Type{$(esc(_T))}) = $(esc(namemap))
+        Base.typemin(x::Type{$(esc(_T))}) = $(esc(_T))($lo)
+        Base.typemax(x::Type{$(esc(_T))}) = $(esc(_T))($hi)
+        let inst = (Any[ $(esc(_T))(v) for v in $values]...,)
+            Base.instances(::Type{$(esc(_T))}) = inst
         end
     end
     if isa(typename,Symbol)
         for (i,sym) in namemap
-            push!(blk.args,:(const $(esc(sym)) = $(esc(T))($i)))
+            push!(blk.args,:(const $(esc(sym)) = $(esc(_T))($i)))
         end
     end
     return Expr(:toplevel, Expr(:module,false,esc(modname),blk),nothing)
