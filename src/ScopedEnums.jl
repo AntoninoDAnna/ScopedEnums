@@ -12,6 +12,80 @@ Abstract supertype for all the scoped enum defined with [`@scopedenum`](@ref).
     """
 abstract type ScopedEnum{T} <: Base.Enum{T} end
 
+basetype(::Type{<:ScopedEnum{T}}) where {T<:Integer} = T
+#(::Type{T})(x::ScopedEnum{T2}) where {T<:Integer,T2<:Integer} = T(bitcast(T2,x))::T
+Base.cconvert(::Type{T}, x::ScopedEnum{T2}) where {T<:Integer,T2<:Integer} = T(x)::T
+Base.write(io::IO, x::ScopedEnum{T}) where {T<:Integer} = write(io, T(x))
+Base.read(io::IO, ::Type{T}) where {T<:ScopedEnum} = T(read(io, basetype(T)))
+
+"""
+    _scopedenum_hash(x::ScopedEnum, h::UInt)
+
+Compute hash for an enum value `x`. This internal method will be specialized
+for every enum type created through [`@enum`](@ref).
+"""
+_scopedenum_hash(x::ScopedEnum, h::UInt) = invoke(hash, Tuple{Any, UInt}, x, h)
+Base.hash(x::ScopedEnum, h::UInt) = _scopedenum_hash(x, h)
+Base.isless(x::T, y::T) where {T<:ScopedEnum} = isless(basetype(T)(x), basetype(T)(y))
+
+Base.Symbol(x::ScopedEnum) = namemap(typeof(x))[Integer(x)]::Symbol
+
+function _symbol(x::ScopedEnum)
+    names = namemap(typeof(x))
+    x = Integer(x)
+    get(() -> Symbol("<invalid #$x>"), names, x)::Symbol
+end
+
+Base.print(io::IO, x::ScopedEnum) = print(io, _symbol(x))
+
+function Base.show(io::IO, x::ScopedEnum)
+    sym = _symbol(x)
+    if !(get(io, :compact, false)::Bool)
+        from = get(io, :module, Main)
+        def = parentmodule(typeof(x))
+        if from === nothing || !Base.isvisible(sym, def, from)
+            show(io, def)
+            print(io, ".")
+        end
+    end
+    print(io, sym)
+end
+
+function Base.show(io::IO, ::MIME"text/plain", x::ScopedEnum)
+    print(io, x, "::")
+    show(IOContext(io, :compact => true), typeof(x))
+    print(io, " = ")
+    show(io, Integer(x))
+end
+
+function Base.show(io::IO, m::MIME"text/plain", t::Type{<:ScopedEnum})
+    if isconcretetype(t)
+        print(io, "ScopedEnum ")
+        Base.show_datatype(io, t)
+        print(io, ":")
+        for x in instances(t)
+            print(io, "\n", Symbol(x), " = ")
+            show(io, Integer(x))
+        end
+    else
+        invoke(show, Tuple{IO, MIME"text/plain", Type}, io, m, t)
+    end
+end
+
+
+import Base: |, &, xor, nand,nor
+
+for op in (:|,:&,:xor,:nand,:nor)
+    @eval $(op)(x::T,y::T) where {T<:ScopedEnum} = $(op)(basetype(T)(x),basetype(T).(y))
+    @eval $(op)(x::T,y) where {T<:ScopedEnum} = $(op)(basetype(T)(x),y)
+    @eval $(op)(x,y::T) where {T<:ScopedEnum} = $(op)(x,basetype(T)(y))
+end
+
+Base.:~(x::T) where {T<:ScopedEnum} = Base.:~(basetype(T)(x))
+
+
+
+
 @noinline arg_error(x) = throw(ArgumentError(x))
 
 # generate code to test whether expr is in the given set of values
@@ -26,18 +100,13 @@ function membershiptest(expr, values)
     end
 end
 
+
 """
     @scopedenum Name[::BaseType] value1[=x] value2[=y]
 
-Create a `ScopedEnum{Basetype}` subtype with name `Name` and enum member values of `value1` and `value2` with optional assigned values of `x` and `y`, respectively. `ScopedEnum` differs from regular `Enum` in being scoped in a Module called `Name`. So to refer to `value1` one as to call `Name.value1`. Additionaly, one can use @scopedenum as bitflags.
+Create a `ScopedEnum{Basetype}` subtype with name `Name` and enum member values of `value1` and `value2` with optional assigned values of `x` and `y`, respectively. `ScopedEnum` differs from regular `Enum` in being scoped in a Module called `Name`. So to refer to `value1` one as to call `Name.value1`.
 The main throwback of this implementation is that `Name`, being the name of the module, cannot be used as a type. The type of the enum member is `Name.Type`
-julia> @scopedenum Fruits apple=1 orange=2 kiwi=3
 
-julia> f(x::Fruits.Type) = "I'm a Fruit with: $(Int(x))"
-f (generic function with 1 method)
-
-julia> f(Fruits.apple)
-"I'm a Fruit with: 1"
 # Examples
 
 ```@jldoctest
@@ -49,6 +118,51 @@ f (generic function with 1 method)
 julia> f(Fruits.apple)
 "I'm a Fruit with: 1"
 
+julia> Fruits.apple
+apple::Type = 1
+
+julia> Fruits.Type
+ScopedEnum Main.Fruits.Type:
+apple = 1
+orange = 2
+kiwi = 3
+
+julia> print(typeof(Fruits.apple))
+Main.Fruits.Type
+
+```
+WindowFlag.
+`@scopedenum` can be also used as bitflags. 
+```@jldoctest
+
+julia> @scopedenum WindowFlag::UInt32 begin
+           Fullscreen         =  0x00000001
+           #...
+           Maximized          =  0x00000080
+           #...
+       end
+
+julia> flag::UInt32 = 0x0;
+
+julia> flag |= WindowFlag.Fullscreen | WindowFlag.Maximized
+0x00000081
+
+julia> is_fullscreen = (flag & WindowFlag.Fullscreen)!=0x0
+true
+
+julia> is_maximixed = (flag & WindowFlag.Maximized) != 0x0
+true
+
+julia> #unset WindowFlag.Maximized
+       flag = flag & (~WindowFlag.Maximized)
+
+0x00000001
+
+julia> is_fullscreen = (flag & WindowFlag.Fullscreen)!=0x0
+true
+
+julia> is_maximixed = (flag & WindowFlag.Maximized) != 0x0
+false
 ```
 """
 macro scopedenum(T::Union{Symbol,Expr}, syms...)
@@ -81,7 +195,7 @@ macro scopedenum(T::Union{Symbol,Expr}, syms...)
     for s in syms
         s isa LineNumberNode && continue
         if isa(s,Symbol)
-            if i == typemin(basetype) && isempty(values)
+            if i == typemin(basetype) && !isempty(values)
                 # i start at zero(basetype), so if it get to be typemin
                 # it mean that we had an overflow 
                 arg_error(LazyString("overflow in value \"", s, "\" of ScopedEnum"))
@@ -124,7 +238,7 @@ macro scopedenum(T::Union{Symbol,Expr}, syms...)
     end
     blk = quote
         import Base
-        primitive type $(esc(_T)) <: ScopedEnum{$(esc(basetype))} $(sizeof(basetype)*8) end
+        primitive type $(esc(_T)) <: ScopedEnum{$(basetype)} $(sizeof(basetype) * 8) end
         function $(esc(_T))(x::Integer)
             $(membershiptest(:x,values)) || args_error($(Expr(:quote, typename)), x)
             return bitcast($(esc(_T)), convert($(basetype),x))
@@ -132,6 +246,13 @@ macro scopedenum(T::Union{Symbol,Expr}, syms...)
         ScopedEnums.namemap(::Type{$(esc(_T))}) = $(esc(namemap))
         Base.typemin(x::Type{$(esc(_T))}) = $(esc(_T))($lo)
         Base.typemax(x::Type{$(esc(_T))}) = $(esc(_T))($hi)
+        let type_hash = hash($(esc(_T)))
+            # Use internal `_enum_hash` to allow users to specialize
+            # `Base.hash` for their own enum types without overwriting the
+            # method we would define here. This avoids a warning for
+            # precompilation.
+            ScopedEnums._scopedenum_hash(x::$(esc(_T)), h::UInt) = hash(type_hash, hash(Integer(x), h))
+        end
         let inst = (Any[ $(esc(_T))(v) for v in $values]...,)
             Base.instances(::Type{$(esc(_T))}) = inst
         end
@@ -143,6 +264,6 @@ macro scopedenum(T::Union{Symbol,Expr}, syms...)
     end
     return Expr(:toplevel, Expr(:module,false,esc(modname),blk),nothing)
 end
-
+    
 end
 
