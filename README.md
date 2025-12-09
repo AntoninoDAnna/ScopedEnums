@@ -12,7 +12,7 @@ To use the package, first add it to the your Registry
 ``` julia
 
 julia> import Pkg
-julia< Pkg.add(https://github.com/AntoninoDAnna/EnumClasses.jl.git)
+julia> Pkg.add(https://github.com/AntoninoDAnna/EnumClasses.jl.git)
 
 ```
 
@@ -47,7 +47,7 @@ As shown in the last line, the type of `Fruits.apple` is `Fruits.Type`, this is 
 
 Additionally, the EnumClasses can also be used as bit-flags ase
 
-	```julia
+``` julia
 
 julia> @enumclass WindowFlag::UInt32 begin
            Fullscreen         =  0x00000001
@@ -77,4 +77,5 @@ true
 
 julia> is_maximixed = (flag & WindowFlag.Maximized) != 0x0
 false
+
 ```
