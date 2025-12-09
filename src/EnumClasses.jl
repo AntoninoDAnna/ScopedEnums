@@ -1,44 +1,44 @@
-module ScopedEnums
+module EnumClasses
 
 import Core.Intrinsics.bitcast
-export ScopedEnum, @scopedenum
+export EnumClass, @enumclass
 
 function namemap end
 
 @doc """
-    ScopedEnum{T} <: Base.Enum{T} where {T<Integer}
+    EnumClass{T} <: Base.Enum{T} where {T<Integer}
 
-Abstract supertype for all the scoped enum defined with [`@scopedenum`](@ref).
+Abstract supertype for all the scoped enum defined with [`@enumclass`](@ref).
     """
-abstract type ScopedEnum{T} <: Base.Enum{T} end
+abstract type EnumClass{T} <: Base.Enum{T} end
 
-basetype(::Type{<:ScopedEnum{T}}) where {T<:Integer} = T
-#(::Type{T})(x::ScopedEnum{T2}) where {T<:Integer,T2<:Integer} = T(bitcast(T2,x))::T
-Base.cconvert(::Type{T}, x::ScopedEnum{T2}) where {T<:Integer,T2<:Integer} = T(x)::T
-Base.write(io::IO, x::ScopedEnum{T}) where {T<:Integer} = write(io, T(x))
-Base.read(io::IO, ::Type{T}) where {T<:ScopedEnum} = T(read(io, basetype(T)))
+basetype(::Type{<:EnumClass{T}}) where {T<:Integer} = T
+#(::Type{T})(x::EnumClass{T2}) where {T<:Integer,T2<:Integer} = T(bitcast(T2,x))::T
+Base.cconvert(::Type{T}, x::EnumClass{T2}) where {T<:Integer,T2<:Integer} = T(x)::T
+Base.write(io::IO, x::EnumClass{T}) where {T<:Integer} = write(io, T(x))
+Base.read(io::IO, ::Type{T}) where {T<:EnumClass} = T(read(io, basetype(T)))
 
 """
-    _scopedenum_hash(x::ScopedEnum, h::UInt)
+    _enumclass_hash(x::EnumClass, h::UInt)
 
 Compute hash for an enum value `x`. This internal method will be specialized
 for every enum type created through [`@enum`](@ref).
 """
-_scopedenum_hash(x::ScopedEnum, h::UInt) = invoke(hash, Tuple{Any, UInt}, x, h)
-Base.hash(x::ScopedEnum, h::UInt) = _scopedenum_hash(x, h)
-Base.isless(x::T, y::T) where {T<:ScopedEnum} = isless(basetype(T)(x), basetype(T)(y))
+_enumclass_hash(x::EnumClass, h::UInt) = invoke(hash, Tuple{Any, UInt}, x, h)
+Base.hash(x::EnumClass, h::UInt) = _enumclass_hash(x, h)
+Base.isless(x::T, y::T) where {T<:EnumClass} = isless(basetype(T)(x), basetype(T)(y))
 
-Base.Symbol(x::ScopedEnum) = namemap(typeof(x))[Integer(x)]::Symbol
+Base.Symbol(x::EnumClass) = namemap(typeof(x))[Integer(x)]::Symbol
 
-function _symbol(x::ScopedEnum)
+function _symbol(x::EnumClass)
     names = namemap(typeof(x))
     x = Integer(x)
     get(() -> Symbol("<invalid #$x>"), names, x)::Symbol
 end
 
-Base.print(io::IO, x::ScopedEnum) = print(io, _symbol(x))
+Base.print(io::IO, x::EnumClass) = print(io, _symbol(x))
 
-function Base.show(io::IO, x::ScopedEnum)
+function Base.show(io::IO, x::EnumClass)
     sym = _symbol(x)
     if !(get(io, :compact, false)::Bool)
         from = get(io, :module, Main)
@@ -51,16 +51,16 @@ function Base.show(io::IO, x::ScopedEnum)
     print(io, sym)
 end
 
-function Base.show(io::IO, ::MIME"text/plain", x::ScopedEnum)
+function Base.show(io::IO, ::MIME"text/plain", x::EnumClass)
     print(io, x, "::")
     show(IOContext(io, :compact => true), typeof(x))
     print(io, " = ")
     show(io, Integer(x))
 end
 
-function Base.show(io::IO, m::MIME"text/plain", t::Type{<:ScopedEnum})
+function Base.show(io::IO, m::MIME"text/plain", t::Type{<:EnumClass})
     if isconcretetype(t)
-        print(io, "ScopedEnum ")
+        print(io, "EnumClass ")
         Base.show_datatype(io, t)
         print(io, ":")
         for x in instances(t)
@@ -76,12 +76,12 @@ end
 import Base: |, &, xor, nand,nor
 
 for op in (:|,:&,:xor,:nand,:nor)
-    @eval $(op)(x::T,y::T) where {T<:ScopedEnum} = $(op)(basetype(T)(x),basetype(T).(y))
-    @eval $(op)(x::T,y) where {T<:ScopedEnum} = $(op)(basetype(T)(x),y)
-    @eval $(op)(x,y::T) where {T<:ScopedEnum} = $(op)(x,basetype(T)(y))
+    @eval $(op)(x::T,y::T) where {T<:EnumClass} = $(op)(basetype(T)(x),basetype(T).(y))
+    @eval $(op)(x::T,y) where {T<:EnumClass} = $(op)(basetype(T)(x),y)
+    @eval $(op)(x,y::T) where {T<:EnumClass} = $(op)(x,basetype(T)(y))
 end
 
-Base.:~(x::T) where {T<:ScopedEnum} = Base.:~(basetype(T)(x))
+Base.:~(x::T) where {T<:EnumClass} = Base.:~(basetype(T)(x))
 
 
 
@@ -102,15 +102,15 @@ end
 
 
 """
-    @scopedenum Name[::BaseType] value1[=x] value2[=y]
+    @enumclass Name[::BaseType] value1[=x] value2[=y]
 
-Create a `ScopedEnum{Basetype}` subtype with name `Name` and enum member values of `value1` and `value2` with optional assigned values of `x` and `y`, respectively. `ScopedEnum` differs from regular `Enum` in being scoped in a Module called `Name`. So to refer to `value1` one as to call `Name.value1`.
+Create a `EnumClass{Basetype}` subtype with name `Name` and enum member values of `value1` and `value2` with optional assigned values of `x` and `y`, respectively. `EnumClass` differs from regular `Enum` in being scoped in a Module called `Name`. So to refer to `value1` one as to call `Name.value1`.
 The main throwback of this implementation is that `Name`, being the name of the module, cannot be used as a type. The type of the enum member is `Name.Type`
 
 # Examples
 
 ```@jldoctest
-julia> @scopedenum Fruits apple=1 orange=2 kiwi=3
+julia> @enumclass Fruits apple=1 orange=2 kiwi=3
 
 julia> f(x::Fruits.Type) = "I'm a Fruit with value: \$(Int(x))"
 f (generic function with 1 method)
@@ -122,7 +122,7 @@ julia> Fruits.apple
 apple::Type = 1
 
 julia> Fruits.Type
-ScopedEnum Main.Fruits.Type:
+EnumClass Main.Fruits.Type:
 apple = 1
 orange = 2
 kiwi = 3
@@ -132,10 +132,10 @@ Main.Fruits.Type
 
 ```
 WindowFlag.
-`@scopedenum` can be also used as bitflags. 
+`@enumclass` can be also used as bitflags. 
 ```@jldoctest
 
-julia> @scopedenum WindowFlag::UInt32 begin
+julia> @enumclass WindowFlag::UInt32 begin
            Fullscreen         =  0x00000001
            #...
            Maximized          =  0x00000080
@@ -165,8 +165,8 @@ julia> is_maximixed = (flag & WindowFlag.Maximized) != 0x0
 false
 ```
 """
-macro scopedenum(T::Union{Symbol,Expr}, syms...)
-    isempty(syms) && arg_error(LazyString("no arguments given for ScopedEnum", T))
+macro enumclass(T::Union{Symbol,Expr}, syms...)
+    isempty(syms) && arg_error(LazyString("no arguments given for EnumClass", T))
 
     basetype = Int32;
     typename = T;
@@ -177,10 +177,10 @@ macro scopedenum(T::Union{Symbol,Expr}, syms...)
         basetype = Core.eval(__module__,T.args[2])
         if !isa(basetype, DataType) || !(basetype<:Integer) || !(isbitstype(basetype))
             arg_error(
-                LazyString("invalid base type for ScopedEnum ", typename, ", ",T,"=::",basetype,"; basetype must be an integer primitive type"))
+                LazyString("invalid base type for EnumClass ", typename, ", ",T,"=::",basetype,"; basetype must be an integer primitive type"))
         end
     elseif !isa(T,Symbol)
-        arg_error(LazyString("Invalid type expression for ScopedEnum ",T))
+        arg_error(LazyString("Invalid type expression for EnumClass ",T))
     end
     modname = typename;
     values = Vector{basetype}()
@@ -198,7 +198,7 @@ macro scopedenum(T::Union{Symbol,Expr}, syms...)
             if i == typemin(basetype) && !isempty(values)
                 # i start at zero(basetype), so if it get to be typemin
                 # it mean that we had an overflow 
-                arg_error(LazyString("overflow in value \"", s, "\" of ScopedEnum"))
+                arg_error(LazyString("overflow in value \"", s, "\" of EnumClass"))
             end
         elseif isa(s,Expr) &&
                (s.head === :(=) || s.head == :kw) &&
@@ -207,26 +207,26 @@ macro scopedenum(T::Union{Symbol,Expr}, syms...)
             i =Core.eval(__module__, s.args[2])
 
             if !isa(i, Integer)
-                    arg_error(LazyString("invalid value for ScopedEnum ", typename, ", ", s, "; values must be integers"))
+                    arg_error(LazyString("invalid value for EnumClass ", typename, ", ", s, "; values must be integers"))
             end
             i = convert(basetype, i)
             s = s.args[1]
             hasexpr = true
         else
-            arg_error(LazyString("invalid argument for ScopedEnum ", typename, ": ", s))
+            arg_error(LazyString("invalid argument for EnumClass ", typename, ": ", s))
         end
         s = s::Symbol
         if !Base.isidentifier(s)
-            arg_error(LazyString("invalid name for ScopedEnum ", typename, "; \"",s,"\" is not a valid identifier"))
+            arg_error(LazyString("invalid name for EnumClass ", typename, "; \"",s,"\" is not a valid identifier"))
         end
         if hasexpr && haskey(namemap,i)
-            arg_error(LasyString("both ",s," and ", namemap[i]," have value ", i, " in ScopedEnum ", typename, "; values must be unique"))
+            arg_error(LazyString("both ",s," and ", namemap[i]," have value ", i, " in EnumClass ", typename, "; values must be unique"))
         end
 
         namemap[i] = s
         push!(values, i)
         if s in seen
-            arg_error(LazyString("name \"", s, "\" in ScopedEnum ", typename, "is not unique"))
+            arg_error(LazyString("name \"", s, "\" in EnumClass ", typename, "is not unique"))
         end
         push!(seen,s)
         if length(values) == 1
@@ -238,12 +238,12 @@ macro scopedenum(T::Union{Symbol,Expr}, syms...)
     end
     blk = quote
         import Base
-        primitive type $(esc(_T)) <: ScopedEnum{$(basetype)} $(sizeof(basetype) * 8) end
+        primitive type $(esc(_T)) <: EnumClass{$(basetype)} $(sizeof(basetype) * 8) end
         function $(esc(_T))(x::Integer)
             $(membershiptest(:x,values)) || args_error($(Expr(:quote, typename)), x)
             return bitcast($(esc(_T)), convert($(basetype),x))
         end
-        ScopedEnums.namemap(::Type{$(esc(_T))}) = $(esc(namemap))
+        EnumClasses.namemap(::Type{$(esc(_T))}) = $(esc(namemap))
         Base.typemin(x::Type{$(esc(_T))}) = $(esc(_T))($lo)
         Base.typemax(x::Type{$(esc(_T))}) = $(esc(_T))($hi)
         let type_hash = hash($(esc(_T)))
@@ -251,7 +251,7 @@ macro scopedenum(T::Union{Symbol,Expr}, syms...)
             # `Base.hash` for their own enum types without overwriting the
             # method we would define here. This avoids a warning for
             # precompilation.
-            ScopedEnums._scopedenum_hash(x::$(esc(_T)), h::UInt) = hash(type_hash, hash(Integer(x), h))
+            EnumClasses._enumclass_hash(x::$(esc(_T)), h::UInt) = hash(type_hash, hash(Integer(x), h))
         end
         let inst = (Any[ $(esc(_T))(v) for v in $values]...,)
             Base.instances(::Type{$(esc(_T))}) = inst

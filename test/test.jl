@@ -1,12 +1,12 @@
-using Revise, ScopedEnums
+using Revise, EnumClasses
 
 # check that declarations are working 
-@scopedenum Fruits apple=1 orange=2 kiwi=3
-@scopedenum Test2 a=1 b c d
-@scopedenum Test3 a b=3 c d=6
-@scopedenum Test4::Int16 a b c d
+@enumclass Fruits apple=1 orange=2 kiwi=3
+@enumclass Test2 a=1 b c d
+@enumclass Test3 a b=3 c d=6
+@enumclass Test4::Int16 a b c d
 
-@scopedenum WFlag::UInt32 begin
+@enumclass WFlag::UInt32 begin
     Fullscreen         =  0x00000001
     #...
     Maximized          =  0x00000080
@@ -25,12 +25,12 @@ is_maximixed = (flag & WFlag.Maximized) != 0x0
 
 # Checking that I can define enums inside a module
 module Testing
-using ScopedEnums
-@scopedenum Test1 a b c d
-@scopedenum Test2 a=1 b c d
-@scopedenum Test3 a b=3 c d=6
-@scopedenum Test4::Int16 a b c d
-@scopedenum Test5::UInt8 begin
+using EnumClasses
+@enumclass Test1 a b c d
+@enumclass Test2 a=1 b c d
+@enumclass Test3 a b=3 c d=6
+@enumclass Test4::Int16 a b c d
+@enumclass Test5::UInt8 begin
     a=0x01
     b=0x02
         c=0x04
