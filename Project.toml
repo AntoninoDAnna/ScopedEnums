@@ -2,3 +2,6 @@ name = "EnumClasses"
 uuid = "53ae640c-c67a-4d53-9dcb-4c921c67b7cd"
 authors = ["Antonino <anda982008@gmail.com>"]
 version = "0.1.0"
+
+[compat]
+julia = "1.11"
